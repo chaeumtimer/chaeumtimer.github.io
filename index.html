@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>채움 그룹 초대</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    max-width: 480px; margin: 0 auto; padding: 40px 20px 64px;
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", Roboto, sans-serif;
+    line-height: 1.7; color: #2e2e33; background: #f7f5f1;
+  }
+  h1 { font-size: 22px; font-weight: 600; margin: 0 0 4px; }
+  .meta { color: #6e6e76; font-size: 14px; margin-bottom: 24px; }
+  .card {
+    background: #ffffff; border: 1px solid #e7e4de; border-radius: 16px;
+    padding: 24px 20px; margin: 20px 0;
+  }
+  .row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 15px; }
+  .row .label { color: #6e6e76; }
+  .row .value { font-weight: 600; }
+  .cta {
+    display: block; width: 100%; box-sizing: border-box; text-align: center;
+    padding: 14px; border-radius: 12px; font-weight: 600; font-size: 16px;
+    text-decoration: none; margin-top: 12px; border: none; cursor: pointer;
+  }
+  .cta.primary { background: #6b7fb3; color: #ffffff; }
+  .cta.secondary { background: #efede8; color: #2e2e33; }
+  .hint { font-size: 13px; color: #6e6e76; text-align: center; margin-top: 10px; }
+  .state { text-align: center; padding: 40px 0; color: #6e6e76; }
+  .error { color: #b3736b; }
+  @media (prefers-color-scheme: dark) {
+    body { color: #e8e8ea; background: #1c1c1f; }
+    .meta, .row .label, .hint, .state { color: #a6a6ae; }
+    .card { background: #26262b; border-color: #3a3a40; }
+    .cta.secondary { background: #33333a; color: #e8e8ea; }
+    .error { color: #d99b8f; }
+  }
+</style>
+</head>
+<body>
+<h1>채움 그룹 초대</h1>
+<p class="meta">함께 시간을 채우는 비공개 그룹이에요.</p>
+
+<div id="content" class="state">불러오는 중…</div>
+
+<script src="./group-invite-link.js"></script>
+<script>
+const SUPABASE_URL = 'https://ycilftsswwfslreeorkt.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_lvk2QVM1bbYWgTxqIMMJ5w_y2czb_PO';
+const APP_PACKAGE = 'com.devkjw.chaeum';
+
+function formatDate(s) {
+  const d = new Date(s + 'T00:00:00');
+  return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
+}
+
+function formatDuration(totalSeconds) {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  if (h > 0 && m > 0) return `${h}시간 ${m}분`;
+  if (h > 0) return `${h}시간`;
+  return `${m}분`;
+}
+
+function escapeHtml(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+async function main() {
+  const el = document.getElementById('content');
+  const token = GroupInviteLink.getToken(window.location);
+
+  if (!GroupInviteLink.isValidToken(token)) {
+    el.className = 'state error';
+    el.textContent = '유효하지 않은 초대 링크예요.';
+    return;
+  }
+
+  let data;
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/preview_group_invite`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`,
+      },
+      body: JSON.stringify({ p_token: token }),
+    });
+    if (!res.ok) throw new Error('invite invalid');
+    const rows = await res.json();
+    data = Array.isArray(rows) ? rows[0] : rows;
+    if (!data) throw new Error('invite invalid');
+  } catch (e) {
+    el.className = 'state error';
+    el.textContent = '유효하지 않거나 만료된 초대 링크예요.';
+    return;
+  }
+
+  const deepLink = GroupInviteLink.buildAppDeepLink(APP_PACKAGE, token);
+  const playLink = `https://play.google.com/store/apps/details?id=${APP_PACKAGE}`;
+
+  el.className = '';
+  el.innerHTML = `
+    <div class="card">
+      <div class="row"><span class="label">그룹명</span><span class="value">${escapeHtml(data.group_name)}</span></div>
+      <div class="row"><span class="label">기간</span><span class="value">${formatDate(data.start_date)} ~ ${formatDate(data.end_date)}</span></div>
+      <div class="row"><span class="label">목표</span><span class="value">${formatDuration(data.target_seconds)}</span></div>
+      <div class="row"><span class="label">참여 인원</span><span class="value">${data.participant_count}명</span></div>
+      ${data.password_required ? '<div class="row"><span class="label">비밀번호</span><span class="value">필요</span></div>' : ''}
+    </div>
+    <a class="cta primary" href="${deepLink}">채움 앱에서 열기</a>
+    <a class="cta secondary" href="${playLink}">Play 스토어에서 채움 설치하기</a>
+    <p class="hint">앱이 설치되어 있으면 바로 열리고, 없으면 스토어로 이동해요.<br>비밀번호와 참여는 앱 안에서 진행돼요.</p>
+  `;
+}
+
+main();
+</script>
+</body>
+</html>
